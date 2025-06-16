@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import Department from '@/lib/models/Department';
 import User from '@/lib/models/User';
@@ -8,23 +8,31 @@ import { withRole } from '@/lib/middleware';
 export const POST = withRole(['admin'])(async (req: NextRequest) => {
   try {
     await dbConnect();
-    
-    const departmentId = req.url.split('/departments/')[1].split('/assign')[0];
-    const body = await req.json();
-    const { userId, role } = body;
 
+    // Extract department ID from URL
+    const departmentId = req.url.split('/departments/')[1].split('/assign')[0];
+
+    // Parse request body
+    const body = await req.json();
+    const { userId, role }: { userId: string; role: 'coordinator' | 'volunteer' } = body;
+
+    // Start MongoDB transaction session
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
+      // Fetch department and user
       const [department, user] = await Promise.all([
         Department.findById(departmentId).session(session),
-        User.findById(userId).session(session)
+        User.findById(userId).session(session),
       ]);
 
       if (!department || !user) {
         await session.abortTransaction();
-        return NextResponse.json({ error: 'Department or user not found' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Department or user not found' },
+          { status: 404 }
+        );
       }
 
       // Remove user from previous department if exists
@@ -32,11 +40,11 @@ export const POST = withRole(['admin'])(async (req: NextRequest) => {
         const oldDepartment = await Department.findById(user.departmentId).session(session);
         if (oldDepartment) {
           if (user.role === 'coordinator') {
-            oldDepartment.coordinatorIds = oldDepartment.coordinatorIds.filter(id => 
+            oldDepartment.coordinatorIds = oldDepartment.coordinatorIds.filter((id: Types.ObjectId) =>
               id.toString() !== userId
             );
           } else {
-            oldDepartment.volunteerIds = oldDepartment.volunteerIds.filter(id => 
+            oldDepartment.volunteerIds = oldDepartment.volunteerIds.filter((id: Types.ObjectId) =>
               id.toString() !== userId
             );
           }
@@ -44,31 +52,36 @@ export const POST = withRole(['admin'])(async (req: NextRequest) => {
         }
       }
 
-      // Add user to new department
+      // Assign user to new department
       user.departmentId = department._id;
       await user.save({ session });
 
-      // Update department members
+      // Add user to coordinator or volunteer list
       if (role === 'coordinator') {
-        if (!department.coordinatorIds.includes(userId)) {
-          department.coordinatorIds.push(userId);
+        if (!department.coordinatorIds.some((id: Types.ObjectId) => id.toString() === userId)) {
+          department.coordinatorIds.push(new mongoose.Types.ObjectId(userId));
         }
       } else {
-        if (!department.volunteerIds.includes(userId)) {
-          department.volunteerIds.push(userId);
+        if (!department.volunteerIds.some((id: Types.ObjectId) => id.toString() === userId)) {
+          department.volunteerIds.push(new mongoose.Types.ObjectId(userId));
         }
       }
+
       await department.save({ session });
 
       await session.commitTransaction();
 
       return NextResponse.json({
-        message: 'User assigned to department successfully'
+        message: 'User assigned to department successfully',
       });
 
     } catch (error) {
       await session.abortTransaction();
-      throw error;
+      console.error('Transaction error:', error);
+      return NextResponse.json(
+        { error: 'Failed during assignment transaction' },
+        { status: 500 }
+      );
     } finally {
       session.endSession();
     }
