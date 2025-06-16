@@ -1,1 +1,0 @@
-// This file can be deleted or left empty, as approval is not required anymore.
