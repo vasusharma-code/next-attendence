@@ -11,6 +11,7 @@ export const GET = withRole(['admin'])(async (req) => {
     const { searchParams } = new URL(req.url);
     const role = searchParams.get('role');
     const status = searchParams.get('status');
+    const limit = parseInt(searchParams.get('limit') || '50');
 
     let query: any = {};
     
@@ -28,7 +29,8 @@ export const GET = withRole(['admin'])(async (req) => {
       .populate('teamId', 'name')
       .populate('coordinatorId', 'name email')
       .populate('teamLeaderId', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(limit);
 
     return NextResponse.json({ users });
   } catch (error) {

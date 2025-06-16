@@ -33,12 +33,12 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
 }
 
 export function withRole(roles: string[]) {
-  return function(handler: (req: AuthenticatedRequest) => Promise<NextResponse>) {
-    return withAuth(async (req: AuthenticatedRequest) => {
+  return function(handler: (req: AuthenticatedRequest, context?: any) => Promise<NextResponse>) {
+    return withAuth(async (req: AuthenticatedRequest, context?: any) => {
       if (!req.user || !roles.includes(req.user.role)) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
       }
-      return handler(req);
+      return handler(req, context);
     });
   };
 }

@@ -18,6 +18,8 @@ import {
   Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
+import DepartmentManageDialog from '@/components/dialogs/DepartmentManageDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface User {
   _id: string;
@@ -41,6 +43,9 @@ export default function AdminDashboard() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -102,6 +107,33 @@ export default function AdminDashboard() {
       'team-member': 'bg-gray-100 text-gray-800',
     };
     return colors[role as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+  };
+
+  const fetchUsersByRole = async (role: string) => {
+    try {
+      const endpoint = role === 'all' 
+        ? '/api/admin/users' 
+        : `/api/admin/users?role=${role}`;
+      
+      const response = await fetch(endpoint);
+      if (response.ok) {
+        const data = await response.json();
+        setFilteredUsers(data.users);
+      } else {
+        throw new Error('Failed to fetch users');
+      }
+    } catch (error) {
+      toast.error('Failed to load users');
+    }
+  };
+
+  useEffect(() => {
+    setFilteredUsers(users);
+  }, [users]);
+
+  const handleRoleChange = (role: string) => {
+    setSelectedRole(role);
+    fetchUsersByRole(role);
   };
 
   if (isLoading) {
@@ -218,15 +250,24 @@ export default function AdminDashboard() {
         {/* Recent Users */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle>Recent Users</CardTitle>
-              <CardDescription>
-                Latest user registrations
-              </CardDescription>
+              <Select value={selectedRole} onValueChange={handleRoleChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="coordinator">Coordinators</SelectItem>
+                  <SelectItem value="volunteer">Volunteers</SelectItem>
+                  <SelectItem value="team-leader">Team Leaders</SelectItem>
+                  <SelectItem value="team-member">Team Members</SelectItem>
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {users.slice(0, 5).map((user) => (
+                {filteredUsers.slice(0, 5).map((user) => (
                   <div key={user._id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{user.name}</p>
@@ -237,6 +278,11 @@ export default function AdminDashboard() {
                     </Badge>
                   </div>
                 ))}
+                {filteredUsers.length === 0 && (
+                  <div className="text-center py-4 text-gray-500">
+                    No users found for this role
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -258,7 +304,7 @@ export default function AdminDashboard() {
                         {dept.coordinatorIds.length} coordinators, {dept.volunteerIds.length} volunteers
                       </p>
                     </div>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" onClick={() => setSelectedDepartment(dept)}>
                       Manage
                     </Button>
                   </div>
@@ -267,6 +313,15 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {selectedDepartment && (
+          <DepartmentManageDialog
+            open={!!selectedDepartment}
+            onClose={() => setSelectedDepartment(null)}
+            departmentId={selectedDepartment._id}
+            departmentName={selectedDepartment.name}
+          />
+        )}
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ export interface IDepartment extends Document {
 }
 
 const DepartmentSchema = new Schema<IDepartment>({
-  name: { type: String, required: true, unique: true, trim: true },
+  name: { type: String, required: true, trim: true },
   description: { type: String, trim: true },
   coordinatorIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   volunteerIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
@@ -20,7 +20,11 @@ const DepartmentSchema = new Schema<IDepartment>({
   timestamps: true
 });
 
-DepartmentSchema.index({ name: 1 });
+// Remove duplicate indexes and define them once
+DepartmentSchema.index({ name: 1 }, { unique: true });
 DepartmentSchema.index({ isActive: 1 });
 
-export default mongoose.models.Department || mongoose.model<IDepartment>('Department', DepartmentSchema);
+// Clear existing model if it exists to prevent duplicate schema error
+mongoose.models = {};
+
+export default mongoose.model<IDepartment>('Department', DepartmentSchema);
