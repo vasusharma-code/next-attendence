@@ -121,8 +121,8 @@ export default function CoordinatorDashboard() {
   };
 
   const getVolunteersCount = () => {
-    if (!coordinatorData?.user?.departmentId) return 0;
-    return coordinatorData.user.departmentId.volunteerIds?.length || 0;
+    if (!coordinatorData?.user?.departmentId?.volunteerIds) return 0;
+    return coordinatorData.user.departmentId.volunteerIds.length;
   };
 
   const removeVolunteer = async (volunteerId: string) => {
@@ -252,7 +252,7 @@ export default function CoordinatorDashboard() {
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-2">Volunteers:</p>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {coordinatorData.user.departmentId.volunteerIds.length > 0 ? (
+                    {coordinatorData?.user?.departmentId?.volunteerIds?.length > 0 ? (
                       coordinatorData.user.departmentId.volunteerIds.map((volunteer) => (
                         <div 
                           key={volunteer._id} 

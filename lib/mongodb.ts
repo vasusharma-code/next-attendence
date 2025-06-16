@@ -22,6 +22,13 @@ async function dbConnect() {
       bufferCommands: false,
     };
 
+    // Ensure models are loaded in the correct order
+    require('./models/Team');
+    require('./models/Department');
+    require('./models/User');
+    require('./models/Attendance');
+    require('./models/Invitation');
+
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
       return mongoose;
     });

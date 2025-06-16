@@ -1,26 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/lib/models/User';
+import Department from '@/lib/models/Department'; // Add this import
 import { withAuth } from '@/lib/middleware';
 
 export const GET = withAuth(async (req) => {
   try {
     await dbConnect();
+
+    // Make sure Department model is loaded
+    require('@/lib/models/Department');
     
     const user = await User.findById(req.user!.userId)
       .select('-password')
-      .populate({
-        path: 'departmentId',
-        select: 'name description coordinatorIds volunteerIds',
-        populate: {
-          path: 'volunteerIds',
-          select: 'name email',
-          model: 'User'
-        }
-      })
+      .populate('departmentId', 'name description')
       .populate('teamId', 'name description')
-      .populate('coordinatorId', 'name email')
-      .populate('teamLeaderId', 'name email');
+      .lean();
 
     if (!user) {
       return NextResponse.json(
@@ -39,5 +34,3 @@ export const GET = withAuth(async (req) => {
     );
   }
 });
-
-// No approval logic here, nothing to change

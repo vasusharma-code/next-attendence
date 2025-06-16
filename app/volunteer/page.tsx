@@ -30,10 +30,6 @@ interface VolunteerData {
       name: string;
       description: string;
     };
-    coordinatorId?: {
-      name: string;
-      email: string;
-    };
   };
 }
 
@@ -82,22 +78,9 @@ export default function VolunteerDashboard() {
         fetch('/api/invitations/pending')
       ]);
 
-      // Log the response status and headers for debugging
-      console.log('Profile Response:', {
-        status: profileRes.status,
-        statusText: profileRes.statusText,
-        headers: Object.fromEntries(profileRes.headers.entries())
-      });
-
       if (profileRes.ok) {
-        const text = await profileRes.text(); // Get raw response text first
-        try {
-          const profileData = JSON.parse(text);
-          setVolunteerData(profileData);
-        } catch (parseError) {
-          console.error('Failed to parse profile response:', text);
-          throw new Error('Invalid JSON response from profile API');
-        }
+        const profileData = await profileRes.json();
+        setVolunteerData(profileData);
       } else if (profileRes.status === 401) {
         router.push('/login');
         return;
@@ -108,14 +91,8 @@ export default function VolunteerDashboard() {
       }
 
       if (attendanceRes.ok) {
-        const text = await attendanceRes.text(); // Get raw response text first
-        try {
-          const attendanceData = JSON.parse(text);
-          setAttendance(attendanceData.attendance);
-        } catch (parseError) {
-          console.error('Failed to parse attendance response:', text);
-          throw new Error('Invalid JSON response from attendance API');
-        }
+        const attendanceData = await attendanceRes.json();
+        setAttendance(attendanceData.attendance);
       } else {
         const errorText = await attendanceRes.text();
         console.error('Attendance API error:', errorText);
@@ -262,13 +239,6 @@ export default function VolunteerDashboard() {
                     <p className="font-semibold text-lg">{volunteerData.user.departmentId.name}</p>
                     <p className="text-gray-600">{volunteerData.user.departmentId.description}</p>
                   </div>
-                  {volunteerData.user.coordinatorId && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Coordinator:</p>
-                      <p className="text-sm">{volunteerData.user.coordinatorId.name}</p>
-                      <p className="text-sm text-gray-600">{volunteerData.user.coordinatorId.email}</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )}

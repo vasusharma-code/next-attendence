@@ -80,3 +80,38 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Add these responsive utilities */
+@layer utilities {
+  .max-w-screen {
+    max-width: 100vw;
+  }
+  
+  .overflow-prevent {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+}
+
+/* Ensure table responsiveness */
+table {
+  width: 100%;
+  min-width: 100%;
+  overflow-x: auto;
+  display: block;
+  @media (min-width: 768px) {
+    display: table;
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.content-container {
+  width: 100%;
+  overflow-x: hidden;
+  padding: 0 1rem;
+}

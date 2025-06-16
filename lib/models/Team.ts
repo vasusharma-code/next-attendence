@@ -8,7 +8,7 @@ export interface ITeam extends Document {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
-  joinCode: string; // Add this line
+  joinCode: string;
 }
 
 const TeamSchema = new Schema<ITeam>({
@@ -17,7 +17,7 @@ const TeamSchema = new Schema<ITeam>({
   leaderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   memberIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   isActive: { type: Boolean, default: true },
-  joinCode: { type: String, unique: true, required: true }, // Add this line
+  joinCode: { type: String, unique: true, required: true },
 }, {
   timestamps: true
 });
@@ -25,4 +25,5 @@ const TeamSchema = new Schema<ITeam>({
 TeamSchema.index({ leaderId: 1 });
 TeamSchema.index({ isActive: 1 });
 
-export default mongoose.models.Team || mongoose.model<ITeam>('Team', TeamSchema);
+const Team = mongoose.models.Team || mongoose.model<ITeam>('Team', TeamSchema);
+export default Team;

@@ -11,24 +11,42 @@ export interface AuthenticatedRequest extends NextRequest {
 
 export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextResponse>) {
   return async (req: NextRequest) => {
-    const token = getTokenFromRequest(req);
-    
-    if (!token) {
-      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+    try {
+      const token = getTokenFromRequest(req);
+      
+      if (!token) {
+        return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+      }
+
+      const payload = verifyToken(token);
+      if (!payload) {
+        return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      }
+
+      // For admin routes, check if user is admin
+      if (req.url.includes('/api/admin/')) {
+        if (payload.role !== 'admin') {
+          return NextResponse.json(
+            { error: 'Unauthorized' },
+            { status: 401 }
+          );
+        }
+      }
+
+      // Add user info to request
+      (req as AuthenticatedRequest).user = {
+        userId: payload.userId,
+        email: payload.email,
+        role: payload.role,
+      };
+      
+      return handler(req as AuthenticatedRequest);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
-
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    (req as AuthenticatedRequest).user = {
-      userId: payload.userId,
-      email: payload.email,
-      role: payload.role,
-    };
-
-    return handler(req as AuthenticatedRequest);
   };
 }
 

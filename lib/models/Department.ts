@@ -23,7 +23,6 @@ const DepartmentSchema = new Schema<IDepartment>({
 // Update the unique index to include both name and isActive
 DepartmentSchema.index({ name: 1, isActive: 1 }, { unique: true });
 
-// Clear existing model if it exists to prevent duplicate schema error
-mongoose.models = {};
-
-export default mongoose.model<IDepartment>('Department', DepartmentSchema);
+// Use this pattern to handle model compilation
+const Department = mongoose.models.Department || mongoose.model<IDepartment>('Department', DepartmentSchema);
+export default Department;

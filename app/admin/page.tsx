@@ -81,15 +81,22 @@ export default function AdminDashboard() {
         fetch('/api/admin/departments')
       ]);
 
-      if (usersRes.ok) {
-        const usersData = await usersRes.json();
-        setUsers(usersData.users);
+      if (!usersRes.ok || !departmentsRes.ok) {
+        // Check for unauthorized access
+        if (usersRes.status === 401 || departmentsRes.status === 401) {
+          router.push('/login');
+          return;
+        }
+        throw new Error('Failed to fetch data');
       }
 
-      if (departmentsRes.ok) {
-        const deptData = await departmentsRes.json();
-        setDepartments(deptData.departments);
-      }
+      const usersData = await usersRes.json();
+      const deptData = await departmentsRes.json();
+
+      setUsers(usersData.users || []);
+      setDepartments(deptData.departments || []);
+      setFilteredUsers(usersData.users || []);
+
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');
@@ -132,9 +139,7 @@ export default function AdminDashboard() {
 
   const fetchUsersByRole = async (role: string) => {
     try {
-      const endpoint = role === 'all' 
-        ? '/api/admin/users' 
-        : `/api/admin/users?role=${role}`;
+      const endpoint = `/api/admin/users${role !== 'all' ? `?role=${role}` : ''}`;
       
       const response = await fetch(endpoint);
       if (response.ok) {
@@ -147,10 +152,6 @@ export default function AdminDashboard() {
       toast.error('Failed to load users');
     }
   };
-
-  useEffect(() => {
-    setFilteredUsers(users);
-  }, [users]);
 
   const handleRoleChange = (role: string) => {
     setSelectedRole(role);
@@ -217,12 +218,12 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <Navbar user={{ name: 'Administrator', email: 'admin@system.com', role: 'admin' }} />
       
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-[90vw] md:max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600">Manage users, departments, and system settings</p>
+            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-sm text-gray-600">Manage users, departments, and system settings</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={() => router.push('/admin/departments/new')}>
@@ -261,7 +262,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Recent Users</CardTitle>
+              <CardTitle className="text-lg">Recent Users</CardTitle>
               <Select value={selectedRole} onValueChange={handleRoleChange}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select role" />
@@ -382,64 +383,68 @@ export default function AdminDashboard() {
               </Button>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="px-3 py-2 border">Name</th>
-                    <th className="px-3 py-2 border">Role</th>
-                    <th className="px-3 py-2 border">Date</th>
-                    <th className="px-3 py-2 border">Time</th>
-                    <th className="px-3 py-2 border">Marked By</th>
-                    <th className="px-3 py-2 border">
-                      {attendanceType === 'department' ? 'Department' : 'Team'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isAttendanceLoading ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8">
-                        Loading...
-                      </td>
-                    </tr>
-                  ) : attendance.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-gray-500">
-                        No attendance records found
-                      </td>
-                    </tr>
-                  ) : (
-                    attendance.map(a => (
-                      <tr key={a._id}>
-                        <td className="border px-3 py-2">{a.userId.name}</td>
-                        <td className="border px-3 py-2">
-                          <Badge className={getRoleBadgeColor(a.userId.role)}>
-                            {a.userId.role}
-                          </Badge>
-                        </td>
-                        <td className="border px-3 py-2">{a.date}</td>
-                        <td className="border px-3 py-2">
-                          {new Date(a.timestamp).toLocaleTimeString()}
-                        </td>
-                        <td className="border px-3 py-2">
-                          <div className="space-y-1">
-                            <p className="font-medium">{a.markedBy?.name}</p>
-                            <Badge className={getRoleBadgeColor(a.markedBy.role)}>
-                              {a.markedBy.role.replace('-', ' ')}
-                            </Badge>
-                            <p className="text-sm text-gray-500">{a.markedBy.email}</p>
-                          </div>
-                        </td>
-                        <td className="border px-3 py-2">
-                          {attendanceType === 'department' 
-                            ? a.departmentId?.name 
-                            : a.teamId?.name}
-                        </td>
+              <div className="min-w-full inline-block align-middle">
+                <div className="overflow-hidden">
+                  <table className="min-w-full divide-y divide-gray-200 border">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="px-3 py-2 border">Name</th>
+                        <th className="px-3 py-2 border">Role</th>
+                        <th className="px-3 py-2 border">Date</th>
+                        <th className="px-3 py-2 border">Time</th>
+                        <th className="px-3 py-2 border">Marked By</th>
+                        <th className="px-3 py-2 border">
+                          {attendanceType === 'department' ? 'Department' : 'Team'}
+                        </th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {isAttendanceLoading ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8">
+                            Loading...
+                          </td>
+                        </tr>
+                      ) : attendance.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-gray-500">
+                            No attendance records found
+                          </td>
+                        </tr>
+                      ) : (
+                        attendance.map(a => (
+                          <tr key={a._id}>
+                            <td className="border px-3 py-2">{a.userId.name}</td>
+                            <td className="border px-3 py-2">
+                              <Badge className={getRoleBadgeColor(a.userId.role)}>
+                                {a.userId.role}
+                              </Badge>
+                            </td>
+                            <td className="border px-3 py-2">{a.date}</td>
+                            <td className="border px-3 py-2">
+                              {new Date(a.timestamp).toLocaleTimeString()}
+                            </td>
+                            <td className="border px-3 py-2">
+                              <div className="space-y-1">
+                                <p className="font-medium">{a.markedBy?.name}</p>
+                                <Badge className={getRoleBadgeColor(a.markedBy.role)}>
+                                  {a.markedBy.role.replace('-', ' ')}
+                                </Badge>
+                                <p className="text-sm text-gray-500">{a.markedBy.email}</p>
+                              </div>
+                            </td>
+                            <td className="border px-3 py-2">
+                              {attendanceType === 'department' 
+                                ? a.departmentId?.name 
+                                : a.teamId?.name}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
