@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       password: hashedPassword,
       role: validatedData.role,
       qrCode,
-      isApproved: validatedData.role !== 'team-leader', // team-leaders need approval
+      isApproved: true, // Always approved
     });
 
     await user.save();
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       message: 'User created successfully',
       user: userWithoutPassword,
-      needsApproval: validatedData.role === 'team-leader'
+      needsApproval: false // No approval needed for any role
     }, { status: 201 });
 
   } catch (error) {

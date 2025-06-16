@@ -13,6 +13,9 @@ export interface IUser extends Document {
   teamId?: mongoose.Types.ObjectId;
   coordinatorId?: mongoose.Types.ObjectId;
   teamLeaderId?: mongoose.Types.ObjectId;
+  organization?: string;
+  photo?: string;
+  governmentId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,14 +32,15 @@ const UserSchema = new Schema<IUser>({
     default: 'volunteer'
   },
   isVerified: { type: Boolean, default: true },
-  isApproved: { type: Boolean, default: function() {
-    return this.role !== 'team-leader';
-  }},
+  isApproved: { type: Boolean, default: false }, // Changed to false by default
   qrCode: { type: String, required: true, unique: true },
   departmentId: { type: Schema.Types.ObjectId, ref: 'Department' },
   teamId: { type: Schema.Types.ObjectId, ref: 'Team' },
   coordinatorId: { type: Schema.Types.ObjectId, ref: 'User' },
   teamLeaderId: { type: Schema.Types.ObjectId, ref: 'User' },
+  organization: { type: String },
+  photo: { type: String },
+  governmentId: { type: String },
 }, {
   timestamps: true
 });

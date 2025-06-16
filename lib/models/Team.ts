@@ -8,6 +8,7 @@ export interface ITeam extends Document {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  joinCode: string; // Add this line
 }
 
 const TeamSchema = new Schema<ITeam>({
@@ -16,6 +17,7 @@ const TeamSchema = new Schema<ITeam>({
   leaderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   memberIds: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   isActive: { type: Boolean, default: true },
+  joinCode: { type: String, unique: true, required: true }, // Add this line
 }, {
   timestamps: true
 });

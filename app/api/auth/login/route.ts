@@ -70,14 +70,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if team leader is approved
-    if (user.role === 'team-leader' && !user.isApproved) {
-      return NextResponse.json(
-        { error: 'Your account is pending approval by admin' },
-        { status: 403 }
-      );
-    }
-
     const isPasswordValid = await comparePassword(validatedData.password, user.password);
     if (!isPasswordValid) {
       return NextResponse.json(

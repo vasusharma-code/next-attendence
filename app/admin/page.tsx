@@ -41,17 +41,26 @@ interface Department {
 
 interface AttendanceRecord {
   _id: string;
-  userId: { name: string; email: string };
-  markedBy: { name: string; email: string };
+  userId: { 
+    name: string; 
+    email: string; 
+    role: string;
+  };
+  markedBy: { 
+    name: string; 
+    email: string;
+    role: string;  // Add role to markedBy interface
+  };
   timestamp: string;
   date: string;
+  departmentId?: { name: string };
+  teamId?: { name: string };
 }
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('all');
@@ -59,6 +68,7 @@ export default function AdminDashboard() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [attendanceDate, setAttendanceDate] = useState<string>('');
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
+  const [attendanceType, setAttendanceType] = useState<'department' | 'team'>('department');
 
   useEffect(() => {
     fetchData();
@@ -66,10 +76,9 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [usersRes, departmentsRes, pendingRes] = await Promise.all([
+      const [usersRes, departmentsRes] = await Promise.all([
         fetch('/api/admin/users'),
-        fetch('/api/admin/departments'),
-        fetch('/api/admin/users?status=pending')
+        fetch('/api/admin/departments')
       ]);
 
       if (usersRes.ok) {
@@ -81,33 +90,11 @@ export default function AdminDashboard() {
         const deptData = await departmentsRes.json();
         setDepartments(deptData.departments);
       }
-
-      if (pendingRes.ok) {
-        const pendingData = await pendingRes.json();
-        setPendingUsers(pendingData.users);
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const approveUser = async (userId: string) => {
-    try {
-      const response = await fetch(`/api/admin/users/${userId}/approve`, {
-        method: 'PATCH',
-      });
-
-      if (response.ok) {
-        toast.success('User approved successfully');
-        fetchData(); // Refresh data
-      } else {
-        throw new Error('Failed to approve user');
-      }
-    } catch (error) {
-      toast.error('Failed to approve user');
     }
   };
 
@@ -174,8 +161,8 @@ export default function AdminDashboard() {
   const fetchAttendance = async (date?: string) => {
     setIsAttendanceLoading(true);
     try {
-      let url = '/api/admin/attendance';
-      if (date) url += `?date=${date}`;
+      let url = `/api/admin/attendance?type=${attendanceType}`;
+      if (date) url += `&date=${date}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -191,7 +178,7 @@ export default function AdminDashboard() {
   // Fetch attendance on mount and when attendanceDate changes
   useEffect(() => {
     fetchAttendance(attendanceDate);
-  }, [attendanceDate]);
+  }, [attendanceDate, attendanceType]);
 
   // Export attendance to Excel
   const exportAttendanceToExcel = () => {
@@ -262,13 +249,6 @@ export default function AdminDashboard() {
             trend={{ value: 5, isPositive: true }}
           />
           <StatsCard
-            title="Pending Approvals"
-            value={pendingUsers.length}
-            description="Team leaders awaiting approval"
-            icon={Clock}
-            className={pendingUsers.length > 0 ? 'border-orange-200 bg-orange-50' : ''}
-          />
-          <StatsCard
             title="Active Today"
             value="24"
             description="Users marked attendance"
@@ -276,52 +256,6 @@ export default function AdminDashboard() {
             trend={{ value: 8, isPositive: true }}
           />
         </div>
-
-        {/* Pending Approvals */}
-        {pendingUsers.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-                Pending Approvals
-              </CardTitle>
-              <CardDescription>
-                Team leaders waiting for approval
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {pendingUsers.map((user) => (
-                  <div key={user._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                      </div>
-                      <Badge className={getRoleBadgeColor(user.role)}>
-                        {user.role.replace('-', ' ')}
-                      </Badge>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => approveUser(user._id)}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <CheckCircle className="mr-1 h-3 w-3" />
-                        Approve
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <XCircle className="mr-1 h-3 w-3" />
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Recent Users */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -405,12 +339,25 @@ export default function AdminDashboard() {
         {/* Attendance Records Section */}
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-blue-600" />
-              Attendance Records
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-blue-600" />
+                Attendance Records
+              </div>
+              <Select value={attendanceType} onValueChange={(value: 'department' | 'team') => setAttendanceType(value)}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select record type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="department">Department Attendance</SelectItem>
+                  <SelectItem value="team">Team Attendance</SelectItem>
+                </SelectContent>
+              </Select>
             </CardTitle>
             <CardDescription>
-              View, filter, and export all attendance records
+              {attendanceType === 'department' 
+                ? 'View coordinator-volunteer attendance records'
+                : 'View team leader-member attendance records'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -439,11 +386,13 @@ export default function AdminDashboard() {
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="px-3 py-2 border">Name</th>
-                    <th className="px-3 py-2 border">Email</th>
+                    <th className="px-3 py-2 border">Role</th>
                     <th className="px-3 py-2 border">Date</th>
                     <th className="px-3 py-2 border">Time</th>
                     <th className="px-3 py-2 border">Marked By</th>
-                    <th className="px-3 py-2 border">Marked By Email</th>
+                    <th className="px-3 py-2 border">
+                      {attendanceType === 'department' ? 'Department' : 'Team'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -463,11 +412,29 @@ export default function AdminDashboard() {
                     attendance.map(a => (
                       <tr key={a._id}>
                         <td className="border px-3 py-2">{a.userId.name}</td>
-                        <td className="border px-3 py-2">{a.userId.email}</td>
+                        <td className="border px-3 py-2">
+                          <Badge className={getRoleBadgeColor(a.userId.role)}>
+                            {a.userId.role}
+                          </Badge>
+                        </td>
                         <td className="border px-3 py-2">{a.date}</td>
-                        <td className="border px-3 py-2">{new Date(a.timestamp).toLocaleTimeString()}</td>
-                        <td className="border px-3 py-2">{a.markedBy?.name || ''}</td>
-                        <td className="border px-3 py-2">{a.markedBy?.email || ''}</td>
+                        <td className="border px-3 py-2">
+                          {new Date(a.timestamp).toLocaleTimeString()}
+                        </td>
+                        <td className="border px-3 py-2">
+                          <div className="space-y-1">
+                            <p className="font-medium">{a.markedBy?.name}</p>
+                            <Badge className={getRoleBadgeColor(a.markedBy.role)}>
+                              {a.markedBy.role.replace('-', ' ')}
+                            </Badge>
+                            <p className="text-sm text-gray-500">{a.markedBy.email}</p>
+                          </div>
+                        </td>
+                        <td className="border px-3 py-2">
+                          {attendanceType === 'department' 
+                            ? a.departmentId?.name 
+                            : a.teamId?.name}
+                        </td>
                       </tr>
                     ))
                   )}

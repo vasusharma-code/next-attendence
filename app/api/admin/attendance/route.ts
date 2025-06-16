@@ -8,13 +8,22 @@ export const GET = withRole(['admin'])(async (req: NextRequest) => {
     await dbConnect();
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date');
+    const type = searchParams.get('type') || 'department';
 
     const query: any = {};
     if (date) query.date = date;
 
+    // Add type-specific conditions
+    if (type === 'department') {
+      query.departmentId = { $exists: true };
+    } else {
+      query.teamId = { $exists: true };
+    }
+
     const attendance = await Attendance.find(query)
-      .populate('userId', 'name email')
-      .populate('markedBy', 'name email')
+      .populate('userId', 'name email role')
+      .populate('markedBy', 'name email role') // Make sure to include role in markedBy population
+      .populate(type === 'department' ? 'departmentId' : 'teamId', 'name')
       .sort({ timestamp: -1 })
       .limit(1000);
 

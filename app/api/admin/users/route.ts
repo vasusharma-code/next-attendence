@@ -10,17 +10,12 @@ export const GET = withRole(['admin'])(async (req) => {
     
     const { searchParams } = new URL(req.url);
     const role = searchParams.get('role');
-    const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
 
     let query: any = {};
     
     if (role && role !== 'all') {
       query.role = role;
-    }
-    
-    if (status === 'pending') {
-      query.isApproved = false;
     }
 
     const users = await User.find(query)
