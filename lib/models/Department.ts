@@ -20,9 +20,8 @@ const DepartmentSchema = new Schema<IDepartment>({
   timestamps: true
 });
 
-// Remove duplicate indexes and define them once
-DepartmentSchema.index({ name: 1 }, { unique: true });
-DepartmentSchema.index({ isActive: 1 });
+// Update the unique index to include both name and isActive
+DepartmentSchema.index({ name: 1, isActive: 1 }, { unique: true });
 
 // Clear existing model if it exists to prevent duplicate schema error
 mongoose.models = {};

@@ -9,7 +9,15 @@ export const GET = withAuth(async (req) => {
     
     const user = await User.findById(req.user!.userId)
       .select('-password')
-      .populate('departmentId', 'name description')
+      .populate({
+        path: 'departmentId',
+        select: 'name description coordinatorIds volunteerIds',
+        populate: {
+          path: 'volunteerIds',
+          select: 'name email',
+          model: 'User'
+        }
+      })
       .populate('teamId', 'name description')
       .populate('coordinatorId', 'name email')
       .populate('teamLeaderId', 'name email');

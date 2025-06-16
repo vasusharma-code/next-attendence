@@ -15,11 +15,13 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Plus
+  Plus,
+  Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 import DepartmentManageDialog from '@/components/dialogs/DepartmentManageDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import * as XLSX from 'xlsx';
 
 interface User {
   _id: string;
@@ -37,6 +39,14 @@ interface Department {
   volunteerIds: any[];
 }
 
+interface AttendanceRecord {
+  _id: string;
+  userId: { name: string; email: string };
+  markedBy: { name: string; email: string };
+  timestamp: string;
+  date: string;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -46,6 +56,9 @@ export default function AdminDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [attendanceDate, setAttendanceDate] = useState<string>('');
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -98,6 +111,27 @@ export default function AdminDashboard() {
     }
   };
 
+  const promoteToCoordinator = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/promote`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newRole: 'coordinator' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('User promoted to coordinator successfully');
+        fetchData(); // Refresh all data to update lists
+      } else {
+        throw new Error(data.error || 'Failed to promote user');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to promote user');
+    }
+  };
+
   const getRoleBadgeColor = (role: string) => {
     const colors = {
       'admin': 'bg-red-100 text-red-800',
@@ -134,6 +168,48 @@ export default function AdminDashboard() {
   const handleRoleChange = (role: string) => {
     setSelectedRole(role);
     fetchUsersByRole(role);
+  };
+
+  // Fetch all attendance records (optionally filtered by date)
+  const fetchAttendance = async (date?: string) => {
+    setIsAttendanceLoading(true);
+    try {
+      let url = '/api/admin/attendance';
+      if (date) url += `?date=${date}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setAttendance(data.attendance);
+      }
+    } catch {
+      toast.error('Failed to fetch attendance records');
+    } finally {
+      setIsAttendanceLoading(false);
+    }
+  };
+
+  // Fetch attendance on mount and when attendanceDate changes
+  useEffect(() => {
+    fetchAttendance(attendanceDate);
+  }, [attendanceDate]);
+
+  // Export attendance to Excel
+  const exportAttendanceToExcel = () => {
+    const wsData = [
+      ['Name', 'Email', 'Date', 'Time', 'Marked By', 'Marked By Email'],
+      ...attendance.map(a => [
+        a.userId.name,
+        a.userId.email,
+        a.date,
+        new Date(a.timestamp).toLocaleTimeString(),
+        a.markedBy?.name || '',
+        a.markedBy?.email || ''
+      ])
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+    XLSX.writeFile(wb, `attendance_${attendanceDate || 'all'}.xlsx`);
   };
 
   if (isLoading) {
@@ -268,14 +344,26 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="space-y-3">
                 {filteredUsers.slice(0, 5).map((user) => (
-                  <div key={user._id} className="flex items-center justify-between">
+                  <div key={user._id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium">{user.name}</p>
                       <p className="text-sm text-gray-600">{user.email}</p>
                     </div>
-                    <Badge className={getRoleBadgeColor(user.role)}>
-                      {user.role.replace('-', ' ')}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getRoleBadgeColor(user.role)}>
+                        {user.role.replace('-', ' ')}
+                      </Badge>
+                      {user.role === 'volunteer' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => promoteToCoordinator(user._id)}
+                          className="ml-2"
+                        >
+                          Promote to Coordinator
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {filteredUsers.length === 0 && (
@@ -313,6 +401,81 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Attendance Records Section */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-blue-600" />
+              Attendance Records
+            </CardTitle>
+            <CardDescription>
+              View, filter, and export all attendance records
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Filter by Date</label>
+                <input
+                  type="date"
+                  className="border rounded px-3 py-2"
+                  value={attendanceDate}
+                  onChange={e => setAttendanceDate(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                className="ml-auto flex items-center gap-2"
+                onClick={exportAttendanceToExcel}
+                disabled={attendance.length === 0}
+              >
+                <Download className="h-4 w-4" />
+                Export to Excel
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border text-sm">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="px-3 py-2 border">Name</th>
+                    <th className="px-3 py-2 border">Email</th>
+                    <th className="px-3 py-2 border">Date</th>
+                    <th className="px-3 py-2 border">Time</th>
+                    <th className="px-3 py-2 border">Marked By</th>
+                    <th className="px-3 py-2 border">Marked By Email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isAttendanceLoading ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-8">
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : attendance.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-8 text-gray-500">
+                        No attendance records found
+                      </td>
+                    </tr>
+                  ) : (
+                    attendance.map(a => (
+                      <tr key={a._id}>
+                        <td className="border px-3 py-2">{a.userId.name}</td>
+                        <td className="border px-3 py-2">{a.userId.email}</td>
+                        <td className="border px-3 py-2">{a.date}</td>
+                        <td className="border px-3 py-2">{new Date(a.timestamp).toLocaleTimeString()}</td>
+                        <td className="border px-3 py-2">{a.markedBy?.name || ''}</td>
+                        <td className="border px-3 py-2">{a.markedBy?.email || ''}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
 
         {selectedDepartment && (
           <DepartmentManageDialog

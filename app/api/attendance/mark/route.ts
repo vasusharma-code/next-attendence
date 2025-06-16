@@ -23,7 +23,8 @@ export const POST = withAuth(async (req) => {
     // Find user by QR code
     const targetUser = await User.findOne({ qrCode: validatedData.qrCode })
       .populate('departmentId')
-      .populate('teamId');
+      .populate('teamId')
+      .populate('coordinatorId');
 
     if (!targetUser) {
       return NextResponse.json(
@@ -33,7 +34,9 @@ export const POST = withAuth(async (req) => {
     }
 
     // Get current user (the one marking attendance)
-    const currentUser = await User.findById(req.user!.userId);
+    const currentUser = await User.findById(req.user!.userId)
+      .populate('departmentId');
+      
     if (!currentUser) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -41,17 +44,25 @@ export const POST = withAuth(async (req) => {
       );
     }
 
-    // Verify permissions
-    const canMark = await canMarkAttendance(currentUser, targetUser);
-    if (!canMark.allowed) {
-      return NextResponse.json(
-        { error: canMark.reason },
-        { status: 403 }
-      );
+    // Allow coordinators to mark attendance for volunteers in their department
+    if (currentUser.role === 'coordinator') {
+      if (!targetUser.departmentId || !currentUser.departmentId) {
+        return NextResponse.json(
+          { error: 'Department information missing' },
+          { status: 400 }
+        );
+      }
+
+      if (targetUser.departmentId._id.toString() !== currentUser.departmentId._id.toString()) {
+        return NextResponse.json(
+          { error: 'You can only mark attendance for volunteers in your department' },
+          { status: 403 }
+        );
+      }
     }
 
     // Check if attendance already marked today
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
     const existingAttendance = await Attendance.findOne({
       userId: targetUser._id,
       date: today
@@ -64,22 +75,26 @@ export const POST = withAuth(async (req) => {
       );
     }
 
-    // Create attendance record
+    // Create attendance record with timestamp
+    const now = new Date();
     const attendance = new Attendance({
       userId: targetUser._id,
       markedBy: currentUser._id,
       role: targetUser.role,
       departmentId: targetUser.departmentId?._id,
       teamId: targetUser.teamId?._id,
-      date: today,
+      date: now.toISOString().split('T')[0],
+      timestamp: now,
       location: validatedData.location,
     });
 
     await attendance.save();
 
     // Populate the attendance record for response
-    await attendance.populate('userId', 'name email role');
-    await attendance.populate('markedBy', 'name email');
+    await attendance.populate([
+      { path: 'userId', select: 'name email role' },
+      { path: 'markedBy', select: 'name email' }
+    ]);
 
     return NextResponse.json({
       message: 'Attendance marked successfully',

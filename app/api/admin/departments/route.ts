@@ -37,7 +37,7 @@ export const POST = withRole(['admin'])(async (req) => {
     const body = await req.json();
     const validatedData = createDepartmentSchema.parse(body);
 
-    // Check if department already exists
+    // Check if active department with same name exists
     const existingDept = await Department.findOne({ 
       name: validatedData.name,
       isActive: true 
@@ -45,12 +45,34 @@ export const POST = withRole(['admin'])(async (req) => {
 
     if (existingDept) {
       return NextResponse.json(
-        { error: 'Department with this name already exists' },
+        { error: 'An active department with this name already exists' },
         { status: 400 }
       );
     }
 
-    const department = new Department(validatedData);
+    // Find and update any inactive department with the same name
+    const inactiveDept = await Department.findOne({
+      name: validatedData.name,
+      isActive: false
+    });
+
+    if (inactiveDept) {
+      // Reactivate the department if it exists
+      inactiveDept.isActive = true;
+      inactiveDept.description = validatedData.description;
+      await inactiveDept.save();
+
+      return NextResponse.json({
+        message: 'Department reactivated successfully',
+        department: inactiveDept
+      }, { status: 200 });
+    }
+
+    // Create new department if no existing one found
+    const department = new Department({
+      ...validatedData,
+      isActive: true
+    });
     await department.save();
 
     return NextResponse.json({

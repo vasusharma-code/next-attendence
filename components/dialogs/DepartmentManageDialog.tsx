@@ -4,6 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Plus, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
 
 interface User {
   _id: string;
@@ -86,11 +88,58 @@ export default function DepartmentManageDialog({
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      const res = await fetch(`/api/admin/departments/${departmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        toast.success('Department deleted successfully');
+        onClose();
+        // You might want to refresh the departments list in the parent component
+        window.location.reload();
+      } else {
+        throw new Error('Failed to delete department');
+      }
+    } catch (error) {
+      toast.error('Failed to delete department');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Manage Department - {departmentName}</DialogTitle>
+          <div className="flex justify-between items-center">
+            <DialogTitle>Manage Department - {departmentName}</DialogTitle>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete Department
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove the department and unassign all its members. 
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDelete}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="coordinators" className="w-full">

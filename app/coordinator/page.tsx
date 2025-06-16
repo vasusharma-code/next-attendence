@@ -17,6 +17,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
+import VolunteerSearchDialog from '@/components/dialogs/VolunteerSearchDialog';
 
 interface CoordinatorData {
   user: {
@@ -28,7 +29,11 @@ interface CoordinatorData {
       _id: string;
       name: string;
       description: string;
-      volunteerIds: any[];
+      volunteerIds: {
+        _id: string;
+        name: string;
+        email: string;
+      }[];
     };
   };
 }
@@ -49,6 +54,7 @@ export default function CoordinatorDashboard() {
   const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
+  const [showVolunteerSearch, setShowVolunteerSearch] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -57,19 +63,18 @@ export default function CoordinatorDashboard() {
   const fetchData = async () => {
     try {
       const profileRes = await fetch('/api/user/profile');
-
+      
       if (profileRes.ok) {
         const profileData = await profileRes.json();
         setCoordinatorData(profileData);
         
         // Fetch recent attendance for the department
         if (profileData.user.departmentId) {
-          // You would implement this API endpoint
-          // const attendanceRes = await fetch(`/api/attendance/department/${profileData.user.departmentId._id}`);
-          // if (attendanceRes.ok) {
-          //   const attendanceData = await attendanceRes.json();
-          //   setRecentAttendance(attendanceData.attendance);
-          // }
+          const attendanceRes = await fetch(`/api/attendance/department/${profileData.user.departmentId._id}`);
+          if (attendanceRes.ok) {
+            const attendanceData = await attendanceRes.json();
+            setRecentAttendance(attendanceData.attendance);
+          }
         }
       } else if (profileRes.status === 401) {
         router.push('/login');
@@ -115,6 +120,29 @@ export default function CoordinatorDashboard() {
     });
   };
 
+  const getVolunteersCount = () => {
+    if (!coordinatorData?.user?.departmentId) return 0;
+    return coordinatorData.user.departmentId.volunteerIds?.length || 0;
+  };
+
+  const removeVolunteer = async (volunteerId: string) => {
+    try {
+      const response = await fetch(`/api/coordinator/volunteers/${volunteerId}/remove`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Volunteer removed successfully');
+        fetchData(); // Refresh data
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to remove volunteer');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove volunteer');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -158,10 +186,6 @@ export default function CoordinatorDashboard() {
               <QrCode className="mr-2 h-4 w-4" />
               {showScanner ? 'Close Scanner' : 'Scan QR Code'}
             </Button>
-            <Button variant="outline">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add Volunteer
-            </Button>
           </div>
         </div>
 
@@ -175,7 +199,7 @@ export default function CoordinatorDashboard() {
           />
           <StatsCard
             title="Volunteers"
-            value={coordinatorData.user.departmentId?.volunteerIds.length || 0}
+            value={getVolunteersCount()}
             description="Under your supervision"
             icon={Users}
           />
@@ -209,9 +233,15 @@ export default function CoordinatorDashboard() {
           {coordinatorData.user.departmentId && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-purple-600" />
-                  Department Details
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-purple-600" />
+                    Department Details
+                  </div>
+                  <Button size="sm" onClick={() => setShowVolunteerSearch(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add Volunteer
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -220,14 +250,37 @@ export default function CoordinatorDashboard() {
                   <p className="text-gray-600">{coordinatorData.user.departmentId.description}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-700">Volunteers Count:</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {coordinatorData.user.departmentId.volunteerIds.length}
-                  </p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Volunteers:</p>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {coordinatorData.user.departmentId.volunteerIds.length > 0 ? (
+                      coordinatorData.user.departmentId.volunteerIds.map((volunteer) => (
+                        <div 
+                          key={volunteer._id} 
+                          className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium">{volunteer.name}</p>
+                            <p className="text-sm text-gray-600">{volunteer.email}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              if (window.confirm('Are you sure you want to remove this volunteer?')) {
+                                removeVolunteer(volunteer._id);
+                              }
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-center py-4">No volunteers in this department yet</p>
+                    )}
+                  </div>
                 </div>
-                <Button variant="outline" className="w-full">
-                  Manage Volunteers
-                </Button>
               </CardContent>
             </Card>
           )}
@@ -270,32 +323,15 @@ export default function CoordinatorDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common coordinator tasks</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Button variant="outline" className="h-20 flex flex-col gap-2">
-                <Users className="h-6 w-6" />
-                View All Volunteers
-              </Button>
-              <Button variant="outline" className="h-20 flex flex-col gap-2">
-                <CheckCircle className="h-6 w-6" />
-                Attendance Report
-              </Button>
-              <Button variant="outline" className="h-20 flex flex-col gap-2">
-                <QrCode className="h-6 w-6" />
-                Manual Entry
-              </Button>
-              <Button variant="outline" className="h-20 flex flex-col gap-2">
-                <Building2 className="h-6 w-6" />
-                Department Settings
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        
+        {/* Add volunteer search dialog */}
+        {showVolunteerSearch && coordinatorData.user.departmentId && (
+          <VolunteerSearchDialog
+            open={showVolunteerSearch}
+            onClose={() => setShowVolunteerSearch(false)}
+            departmentId={coordinatorData.user.departmentId._id}
+          />
+        )}
       </div>
     </div>
   );

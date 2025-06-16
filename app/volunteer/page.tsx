@@ -6,13 +6,16 @@ import Navbar from '@/components/layout/Navbar';
 import QRCodeDisplay from '@/components/qr/QRCodeDisplay';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   QrCode, 
   Calendar, 
   User,
   Building2,
   CheckCircle,
-  Clock
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,10 +49,25 @@ interface AttendanceRecord {
   };
 }
 
+interface Invitation {
+  _id: string;
+  departmentId: {
+    _id: string;
+    name: string;
+  };
+  invitedBy: {
+    name: string;
+    email: string;
+  };
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+}
+
 export default function VolunteerDashboard() {
   const router = useRouter();
   const [volunteerData, setVolunteerData] = useState<VolunteerData | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -58,9 +76,10 @@ export default function VolunteerDashboard() {
 
   const fetchData = async () => {
     try {
-      const [profileRes, attendanceRes] = await Promise.all([
+      const [profileRes, attendanceRes, invitationsRes] = await Promise.all([
         fetch('/api/user/profile'),
-        fetch('/api/attendance/history?limit=10')
+        fetch('/api/attendance/history?limit=10'),
+        fetch('/api/invitations/pending')
       ]);
 
       // Log the response status and headers for debugging
@@ -102,6 +121,11 @@ export default function VolunteerDashboard() {
         console.error('Attendance API error:', errorText);
         throw new Error(`Attendance API error: ${attendanceRes.status} ${attendanceRes.statusText}`);
       }
+
+      if (invitationsRes.ok) {
+        const invitationsData = await invitationsRes.json();
+        setInvitations(invitationsData.invitations);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to load dashboard data');
@@ -127,6 +151,25 @@ export default function VolunteerDashboard() {
       const recordDate = new Date(record.timestamp);
       return recordDate.getMonth() === thisMonth && recordDate.getFullYear() === thisYear;
     }).length;
+  };
+
+  const respondToInvitation = async (invitationId: string, status: 'accepted' | 'rejected') => {
+    try {
+      const response = await fetch(`/api/invitations/${invitationId}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+
+      if (response.ok) {
+        toast.success(`Invitation ${status} successfully`);
+        fetchData(); // Refresh data
+      } else {
+        throw new Error('Failed to respond to invitation');
+      }
+    } catch (error) {
+      toast.error('Failed to respond to invitation');
+    }
   };
 
   if (isLoading) {
@@ -272,6 +315,50 @@ export default function VolunteerDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Invitations Section */}
+        {invitations.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-blue-600" />
+                Department Invitations
+              </CardTitle>
+              <CardDescription>Pending invitations to join departments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {invitations.map((invitation) => (
+                  <div key={invitation._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                    <div>
+                      <p className="font-medium">{invitation.departmentId.name}</p>
+                      <p className="text-sm text-gray-600">
+                        Invited by {invitation.invitedBy.name}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => respondToInvitation(invitation._id, 'accepted')}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => respondToInvitation(invitation._id, 'rejected')}
+                        className="text-red-600 border-red-600 hover:bg-red-50"
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
